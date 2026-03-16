@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Finglobe CRM</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+
+body{
+font-family:Arial;
+margin:0;
+background:#0b1d3a;
+color:white;
+}
+
+header{
+padding:20px;
+background:#081633;
+display:flex;
+justify-content:space-between;
+}
+
+.container{
+padding:20px;
+}
+
+input,select{
+padding:8px;
+margin:5px;
+border-radius:5px;
+border:none;
+}
+
+button{
+padding:7px 12px;
+border:none;
+border-radius:5px;
+cursor:pointer;
+margin-right:5px;
+}
+
+.add{background:#28c76f;color:white;}
+.call{background:#4ea3ff;color:white;}
+.view{background:#7367f0;color:white;}
+.edit{background:#ff9f43;color:white;}
+.delete{background:#ea5455;color:white;}
+
+table{
+width:100%;
+margin-top:20px;
+border-collapse:collapse;
+background:#10264a;
+}
+
+th,td{
+padding:10px;
+border-bottom:1px solid rgba(255,255,255,0.1);
+}
+
+</style>
+
+</head>
+
+<body>
+
+<header>
+<h2>Finglobe Telecalling CRM</h2>
+</header>
+
+<div class="container">
+
+<h3>Add Lead</h3>
+
+<input id="name" placeholder="Name">
+<input id="phone" placeholder="Phone">
+<input id="city" placeholder="City">
+
+<select id="status">
+<option>New</option>
+<option>Interested</option>
+<option>Follow Up</option>
+<option>Converted</option>
+<option>Not Interested</option>
+</select>
+
+<button class="add" onclick="addLead()">Add Lead</button>
+
+<table>
+
+<thead>
+<tr>
+<th>Name</th>
+<th>Phone</th>
+<th>City</th>
+<th>Status</th>
+<th>Actions</th>
+</tr>
+</thead>
+
+<tbody id="leadTable"></tbody>
+
+</table>
+
+</div>
+
+<script>
+
+const { createClient } = supabase
+
+const supabaseClient = createClient(
+"https://npyijrvbscsgmgkvnezh.supabase.co",
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5weWlqcnZic2NzZ21na3ZuZXpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzOTE1MjEsImV4cCI6MjA4ODk2NzUyMX0.wlQ11YfULBxho_L1mFRqc3p8F88rMidsysnUeiRhqHI"
+)
+
+let leads=[]
+
+async function fetchLeads(){
+
+const { data, error } = await supabaseClient
+.from("leads")
+.select("*")
+.order("id",{ascending:false})
+
+if(error){
+alert(error.message)
+return
+}
+
+leads=data
+renderLeads()
+
+}
+
+
+function renderLeads(){
+
+let table=""
+
+leads.forEach((lead)=>{
+
+table+=`
+<tr>
+<td>${lead.name}</td>
+<td>${lead.phone}</td>
+<td>${lead.city}</td>
+<td>${lead.status}</td>
+<td>
+
+<button class="call" onclick="callLead('${lead.phone}')">Call</button>
+
+<button class="view" onclick="viewLead(${lead.id})">View</button>
+
+<button class="edit" onclick="editLead(${lead.id})">Edit</button>
+
+<button class="delete" onclick="deleteLead(${lead.id})">Delete</button>
+
+</td>
+</tr>
+`
+
+})
+
+document.getElementById("leadTable").innerHTML=table
+
+}
+
+
+async function addLead(){
+
+let name=document.getElementById("name").value
+let phone=document.getElementById("phone").value
+let city=document.getElementById("city").value
+let status=document.getElementById("status").value
+
+if(name==""||phone==""){
+alert("Enter name and phone")
+return
+}
+
+const { error } = await supabaseClient
+.from("leads")
+.insert([{name,phone,city,status}])
+
+if(error){
+alert(error.message)
+}else{
+alert("Lead Added")
+fetchLeads()
+}
+
+document.getElementById("name").value=""
+document.getElementById("phone").value=""
+document.getElementById("city").value=""
+
+}
+
+
+function callLead(phone){
+
+window.location.href="tel:"+phone
+
+}
+
+
+function viewLead(id){
+
+let lead = leads.find(l => l.id == id)
+
+alert(
+"Name: "+lead.name+"\n"+
+"Phone: "+lead.phone+"\n"+
+"City: "+lead.city+"\n"+
+"Status: "+lead.status
+)
+
+}
+
+
+async function editLead(id){
+
+let lead = leads.find(l => l.id == id)
+
+let newStatus = prompt("Update Status", lead.status)
+
+if(!newStatus) return
+
+await supabaseClient
+.from("leads")
+.update({status:newStatus})
+.eq("id",id)
+
+fetchLeads()
+
+}
+
+
+async function deleteLead(id){
+
+if(!confirm("Delete this lead?")) return
+
+await supabaseClient
+.from("leads")
+.delete()
+.eq("id",id)
+
+fetchLeads()
+
+}
+
+
+fetchLeads()
+
+</script>
+
+</body>
+</html>
