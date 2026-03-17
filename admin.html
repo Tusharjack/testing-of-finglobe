@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Finglobe CRM Admin</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+
+body{
+font-family:Arial;
+background:#0b1d3a;
+color:white;
+margin:0;
+}
+
+header{
+padding:15px;
+background:#081633;
+}
+
+.container{
+padding:20px;
+}
+
+.card{
+background:#1c3c6b;
+padding:15px;
+border-radius:10px;
+margin:10px;
+display:inline-block;
+min-width:120px;
+text-align:center;
+}
+
+input,select,button{
+margin:5px;
+padding:8px;
+border-radius:5px;
+border:none;
+}
+
+button{cursor:pointer;}
+
+.error{background:#ea5455;padding:10px;display:none;}
+.success{background:#28c76f;padding:10px;display:none;}
+
+table{
+width:100%;
+margin-top:20px;
+background:#10264a;
+border-collapse:collapse;
+}
+
+td,th{
+padding:10px;
+border-bottom:1px solid rgba(255,255,255,0.1);
+}
+
+.status-select{
+background:#0b1d3a;
+color:white;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<header>
+<h2>Finglobe CRM Admin Dashboard</h2>
+</header>
+
+<div class="container">
+
+<div id="errorBox" class="error"></div>
+<div id="successBox" class="success"></div>
+
+<!-- Dashboard -->
+<div>
+<div class="card">Total: <span id="totalLeads">0</span></div>
+<div class="card">New: <span id="newLeads">0</span></div>
+<div class="card">Interested: <span id="interestedLeads">0</span></div>
+<div class="card">Converted: <span id="convertedLeads">0</span></div>
+</div>
+
+<!-- Search & Filter -->
+<input id="search" placeholder="Search name or phone" onkeyup="filterLeads()">
+
+<select id="filterStatus" onchange="filterLeads()">
+<option value="">All Status</option>
+<option>New</option>
+<option>Interested</option>
+<option>Follow Up</option>
+<option>Converted</option>
+<option>Not Interested</option>
+</select>
+
+<!-- Add Lead -->
+<h3>Add Lead</h3>
+
+<input id="name" placeholder="Name">
+<input id="phone" placeholder="Phone">
+<input id="city" placeholder="City">
+<input id="email" placeholder="Email">
+
+<select id="status">
+<option>New</option>
+<option>Interested</option>
+<option>Follow Up</option>
+<option>Converted</option>
+<option>Not Interested</option>
+</select>
+
+<button onclick="addLead()">Add Lead</button>
+
+<!-- Table -->
+<table>
+
+<thead>
+<tr>
+<th>Name</th>
+<th>Phone</th>
+<th>City</th>
+<th>Email</th>
+<th>Status</th>
+<th>Actions</th>
+</tr>
+</thead>
+
+<tbody id="leadTable"></tbody>
+
+</table>
+
+</div>
+
+<script>
+
+// ✅ Supabase Setup
+const { createClient } = supabase
+
+const supabaseClient = createClient(
+"https://npyijrvbscsgmgkvnezh.supabase.co",
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5weWlqcnZic2NzZ21na3ZuZXpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzOTE1MjEsImV4cCI6MjA4ODk2NzUyMX0.wlQ11YfULBxho_L1mFRqc3p8F88rMidsysnUeiRhqHI"
+)
+
+let leads=[]
+
+
+// ✅ UI Messages
+function showError(msg){
+errorBox.innerText=msg
+errorBox.style.display="block"
+setTimeout(()=>errorBox.style.display="none",3000)
+}
+
+function showSuccess(msg){
+successBox.innerText=msg
+successBox.style.display="block"
+setTimeout(()=>successBox.style.display="none",3000)
+}
+
+
+// ✅ Fetch Leads
+async function fetchLeads(){
+
+const { data, error } = await supabaseClient
+.from("leads")
+.select("*")
+.order("id",{ascending:false})
+
+if(error){
+showError(error.message)
+return
+}
+
+leads=data
+renderLeads()
+updateDashboard()
+
+}
+
+
+// ✅ Render Table with DROPDOWN STATUS
+function renderLeads(data=leads){
+
+let html=""
+
+data.forEach(l=>{
+
+html+=`
+<tr>
+<td>${l.name}</td>
+<td>${l.phone}</td>
+<td>${l.city}</td>
+<td>${l.email || ""}</td>
+
+<td>
+<select class="status-select" onchange="updateStatus(${l.id}, this.value)">
+<option ${l.status==="New"?"selected":""}>New</option>
+<option ${l.status==="Interested"?"selected":""}>Interested</option>
+<option ${l.status==="Follow Up"?"selected":""}>Follow Up</option>
+<option ${l.status==="Converted"?"selected":""}>Converted</option>
+<option ${l.status==="Not Interested"?"selected":""}>Not Interested</option>
+</select>
+</td>
+
+<td>
+<button onclick="callLead('${l.phone}')">Call</button>
+<button onclick="deleteLead(${l.id})">Delete</button>
+</td>
+</tr>
+`
+
+})
+
+leadTable.innerHTML=html
+
+}
+
+
+// ✅ Update Status (NO PROMPT 🔥)
+async function updateStatus(id, newStatus){
+
+const { error } = await supabaseClient
+.from("leads")
+.update({ status: newStatus })
+.eq("id", id)
+
+if(error){
+showError(error.message)
+}else{
+showSuccess("Status Updated")
+fetchLeads()
+}
+
+}
+
+
+// ✅ Dashboard
+function updateDashboard(){
+
+totalLeads.innerText = leads.length
+
+newLeads.innerText =
+leads.filter(l=>l.status==="New").length
+
+interestedLeads.innerText =
+leads.filter(l=>l.status==="Interested").length
+
+convertedLeads.innerText =
+leads.filter(l=>l.status==="Converted").length
+
+}
+
+
+// ✅ Add Lead
+async function addLead(){
+
+let name=nameInput.value
+let phone=phoneInput.value.replace(/[^0-9]/g,"")
+
+if(!name || !phone){
+showError("Enter name & phone")
+return
+}
+
+const { error } = await supabaseClient
+.from("leads")
+.insert([{
+name,
+phone,
+city:cityInput.value,
+email:emailInput.value,
+status:status.value
+}])
+
+if(error){
+showError(error.message)
+}else{
+showSuccess("Lead Added")
+fetchLeads()
+}
+
+}
+
+
+// ✅ Delete
+async function deleteLead(id){
+
+if(!confirm("Delete this lead?")) return
+
+const { error } = await supabaseClient
+.from("leads")
+.delete()
+.eq("id",id)
+
+if(error){
+showError(error.message)
+}else{
+showSuccess("Deleted")
+fetchLeads()
+}
+
+}
+
+
+// ✅ Call
+function callLead(p){
+window.location.href="tel:"+p
+}
+
+
+// ✅ Search + Filter
+function filterLeads(){
+
+let s=search.value.toLowerCase()
+let st=filterStatus.value
+
+let filtered=leads.filter(l =>
+(l.name.toLowerCase().includes(s) || l.phone.includes(s)) &&
+(st==="" || l.status===st)
+)
+
+renderLeads(filtered)
+
+}
+
+
+// 🚀 Start
+fetchLeads()
+
+</script>
+
+</body>
+</html>
