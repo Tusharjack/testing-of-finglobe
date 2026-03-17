@@ -5,9 +5,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Finglobe CRM</title>
+<title>Finglobe Telecalling CRM</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
 <style>
 
@@ -21,8 +22,6 @@ color:white;
 header{
 padding:20px;
 background:#081633;
-display:flex;
-justify-content:space-between;
 }
 
 .container{
@@ -47,8 +46,24 @@ margin-right:5px;
 .add{background:#28c76f;color:white;}
 .call{background:#4ea3ff;color:white;}
 .view{background:#7367f0;color:white;}
-.edit{background:#ff9f43;color:white;}
 .delete{background:#ea5455;color:white;}
+.upload{background:#00cfe8;color:white;}
+
+.error{
+background:#ea5455;
+padding:10px;
+margin:10px 0;
+border-radius:5px;
+display:none;
+}
+
+.success{
+background:#28c76f;
+padding:10px;
+margin:10px 0;
+border-radius:5px;
+display:none;
+}
 
 table{
 width:100%;
@@ -60,6 +75,11 @@ background:#10264a;
 th,td{
 padding:10px;
 border-bottom:1px solid rgba(255,255,255,0.1);
+}
+
+.status-select{
+background:#0b1d3a;
+color:white;
 }
 
 </style>
@@ -74,11 +94,15 @@ border-bottom:1px solid rgba(255,255,255,0.1);
 
 <div class="container">
 
+<div id="errorBox" class="error"></div>
+<div id="successBox" class="success"></div>
+
 <h3>Add Lead</h3>
 
 <input id="name" placeholder="Name">
 <input id="phone" placeholder="Phone">
 <input id="city" placeholder="City">
+<input id="email" placeholder="Email">
 
 <select id="status">
 <option>New</option>
@@ -90,6 +114,13 @@ border-bottom:1px solid rgba(255,255,255,0.1);
 
 <button class="add" onclick="addLead()">Add Lead</button>
 
+
+<h3>Upload Excel Leads</h3>
+
+<input type="file" id="excelFile" accept=".xlsx,.xls">
+<button class="upload" onclick="uploadExcel()">Upload Excel</button>
+
+
 <table>
 
 <thead>
@@ -97,6 +128,7 @@ border-bottom:1px solid rgba(255,255,255,0.1);
 <th>Name</th>
 <th>Phone</th>
 <th>City</th>
+<th>Email</th>
 <th>Status</th>
 <th>Actions</th>
 </tr>
@@ -107,6 +139,7 @@ border-bottom:1px solid rgba(255,255,255,0.1);
 </table>
 
 </div>
+
 
 <script>
 
@@ -119,6 +152,22 @@ const supabaseClient = createClient(
 
 let leads=[]
 
+
+// ✅ UI Messages
+function showError(msg){
+errorBox.innerText=msg
+errorBox.style.display="block"
+setTimeout(()=>errorBox.style.display="none",4000)
+}
+
+function showSuccess(msg){
+successBox.innerText=msg
+successBox.style.display="block"
+setTimeout(()=>successBox.style.display="none",4000)
+}
+
+
+// ✅ Fetch Leads
 async function fetchLeads(){
 
 const { data, error } = await supabaseClient
@@ -127,7 +176,7 @@ const { data, error } = await supabaseClient
 .order("id",{ascending:false})
 
 if(error){
-alert(error.message)
+showError(error.message)
 return
 }
 
@@ -137,6 +186,7 @@ renderLeads()
 }
 
 
+// ✅ Render Table WITH DROPDOWN EDIT 🔥
 function renderLeads(){
 
 let table=""
@@ -148,17 +198,22 @@ table+=`
 <td>${lead.name}</td>
 <td>${lead.phone}</td>
 <td>${lead.city}</td>
-<td>${lead.status}</td>
+<td>${lead.email || ""}</td>
+
 <td>
+<select class="status-select" onchange="updateStatus(${lead.id}, this.value)">
+<option ${lead.status==="New"?"selected":""}>New</option>
+<option ${lead.status==="Interested"?"selected":""}>Interested</option>
+<option ${lead.status==="Follow Up"?"selected":""}>Follow Up</option>
+<option ${lead.status==="Converted"?"selected":""}>Converted</option>
+<option ${lead.status==="Not Interested"?"selected":""}>Not Interested</option>
+</select>
+</td>
 
+<td>
 <button class="call" onclick="callLead('${lead.phone}')">Call</button>
-
 <button class="view" onclick="viewLead(${lead.id})">View</button>
-
-<button class="edit" onclick="editLead(${lead.id})">Edit</button>
-
 <button class="delete" onclick="deleteLead(${lead.id})">Delete</button>
-
 </td>
 </tr>
 `
@@ -170,43 +225,67 @@ document.getElementById("leadTable").innerHTML=table
 }
 
 
+// ✅ Update Status (NO PROMPT)
+async function updateStatus(id, newStatus){
+
+const { error } = await supabaseClient
+.from("leads")
+.update({ status: newStatus })
+.eq("id", id)
+
+if(error){
+showError(error.message)
+}else{
+showSuccess("Status Updated")
+fetchLeads()
+}
+
+}
+
+
+// ✅ Add Lead
 async function addLead(){
 
-let name=document.getElementById("name").value
-let phone=document.getElementById("phone").value
-let city=document.getElementById("city").value
-let status=document.getElementById("status").value
+let name=nameInput.value
+let phone=phoneInput.value.replace(/[^0-9]/g,"")
 
-if(name==""||phone==""){
-alert("Enter name and phone")
+if(!name || !phone){
+showError("Enter name and phone")
 return
 }
 
 const { error } = await supabaseClient
 .from("leads")
-.insert([{name,phone,city,status}])
+.insert([{
+name,
+phone,
+city:cityInput.value,
+email:emailInput.value,
+status:status.value
+}])
 
 if(error){
-alert(error.message)
+showError(error.message)
 }else{
-alert("Lead Added")
+showSuccess("Lead Added")
 fetchLeads()
 }
 
-document.getElementById("name").value=""
-document.getElementById("phone").value=""
-document.getElementById("city").value=""
+nameInput.value=""
+phoneInput.value=""
+cityInput.value=""
+emailInput.value=""
 
 }
 
 
+// ✅ Call
 function callLead(phone){
-
 window.location.href="tel:"+phone
-
 }
 
 
+// ✅ View
 function viewLead(id){
 
 let lead = leads.find(l => l.id == id)
@@ -215,44 +294,90 @@ alert(
 "Name: "+lead.name+"\n"+
 "Phone: "+lead.phone+"\n"+
 "City: "+lead.city+"\n"+
+"Email: "+(lead.email || "")+"\n"+
 "Status: "+lead.status
 )
 
 }
 
 
-async function editLead(id){
-
-let lead = leads.find(l => l.id == id)
-
-let newStatus = prompt("Update Status", lead.status)
-
-if(!newStatus) return
-
-await supabaseClient
-.from("leads")
-.update({status:newStatus})
-.eq("id",id)
-
-fetchLeads()
-
-}
-
-
+// ✅ Delete
 async function deleteLead(id){
 
 if(!confirm("Delete this lead?")) return
 
-await supabaseClient
+const { error } = await supabaseClient
 .from("leads")
 .delete()
 .eq("id",id)
 
+if(error){
+showError(error.message)
+}else{
+showSuccess("Deleted")
 fetchLeads()
+}
 
 }
 
 
+// ✅ Excel Upload
+async function uploadExcel(){
+
+const fileInput=document.getElementById("excelFile")
+
+if(fileInput.files.length===0){
+showError("Select Excel file")
+return
+}
+
+const file=fileInput.files[0]
+
+const reader=new FileReader()
+
+reader.onload=async function(e){
+
+const data=new Uint8Array(e.target.result)
+
+const workbook=XLSX.read(data,{type:'array'})
+
+const sheet=workbook.Sheets[workbook.SheetNames[0]]
+
+const jsonData=XLSX.utils.sheet_to_json(sheet)
+
+let leadsToInsert=[]
+
+jsonData.forEach(row => {
+
+leadsToInsert.push({
+name: row["Name"] || "",
+phone: (row["Mobile No."] || "").toString().replace(/[^0-9]/g,""),
+city: row["Current Location"] || "",
+email: row["Email Id"] || "",
+status: "New"
+})
+
+})
+
+const { error } = await supabaseClient
+.from("leads")
+.insert(leadsToInsert)
+
+if(error){
+showError(error.message)
+}else{
+showSuccess("Excel Uploaded Successfully")
+fetchLeads()
+}
+
+}
+
+reader.readAsArrayBuffer(file)
+
+}
+
+
+// 🚀 Start
 fetchLeads()
 
 </script>
