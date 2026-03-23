@@ -1,128 +1,33 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Finglobe Telecalling CRM</title>
+<title>My Leads</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
 <style>
-
-body{
-font-family:Arial;
-margin:0;
-background:#0b1d3a;
-color:white;
-}
-
-header{
-padding:20px;
-background:#081633;
-}
-
-.container{
-padding:20px;
-}
-
-input,select{
-padding:8px;
-margin:5px;
-border-radius:5px;
-border:none;
-}
-
-button{
-padding:7px 12px;
-border:none;
-border-radius:5px;
-cursor:pointer;
-margin-right:5px;
-}
-
-.add{background:#28c76f;color:white;}
-.call{background:#4ea3ff;color:white;}
-.view{background:#7367f0;color:white;}
-.delete{background:#ea5455;color:white;}
-.upload{background:#00cfe8;color:white;}
-
-.error{
-background:#ea5455;
-padding:10px;
-margin:10px 0;
-border-radius:5px;
-display:none;
-}
-
-.success{
-background:#28c76f;
-padding:10px;
-margin:10px 0;
-border-radius:5px;
-display:none;
-}
-
-table{
-width:100%;
-margin-top:20px;
-border-collapse:collapse;
-background:#10264a;
-}
-
-th,td{
-padding:10px;
-border-bottom:1px solid rgba(255,255,255,0.1);
-}
-
-.status-select{
-background:#0b1d3a;
-color:white;
-}
-
+body{font-family:Arial;background:#0b1d3a;color:white;padding:20px;}
+table{width:100%;margin-top:20px;background:#10264a;border-collapse:collapse;}
+td,th{padding:10px;border-bottom:1px solid rgba(255,255,255,0.1);}
+button{padding:6px 10px;border:none;border-radius:5px;margin:2px;cursor:pointer;}
+select{padding:5px;border-radius:5px;background:#0b1d3a;color:white;}
+.call{background:#4ea3ff;}
+.whatsapp{background:#25D366;}
+.mail{background:#ff9f43;}
+.debug{background:#222;padding:10px;margin-top:10px;font-size:12px;}
 </style>
 
 </head>
 
 <body>
 
-<header>
-<h2>Finglobe Telecalling CRM</h2>
-</header>
+<h2>My Leads</h2>
 
-<div class="container">
+<button onclick="logout()">Logout</button>
 
-<div id="errorBox" class="error"></div>
-<div id="successBox" class="success"></div>
-
-<h3>Add Lead</h3>
-
-<input id="name" placeholder="Name">
-<input id="phone" placeholder="Phone">
-<input id="city" placeholder="City">
-<input id="email" placeholder="Email">
-
-<select id="status">
-<option>New</option>
-<option>Interested</option>
-<option>Follow Up</option>
-<option>Converted</option>
-<option>Not Interested</option>
-</select>
-
-<button class="add" onclick="addLead()">Add Lead</button>
-
-
-<h3>Upload Excel Leads</h3>
-
-<input type="file" id="excelFile" accept=".xlsx,.xls">
-<button class="upload" onclick="uploadExcel()">Upload Excel</button>
-
+<div id="debug" class="debug"></div>
 
 <table>
-
 <thead>
 <tr>
 <th>Name</th>
@@ -134,12 +39,9 @@ color:white;
 </tr>
 </thead>
 
-<tbody id="leadTable"></tbody>
+<tbody id="table"></tbody>
 
 </table>
-
-</div>
-
 
 <script>
 
@@ -150,234 +52,132 @@ const supabaseClient = createClient(
 "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5weWlqcnZic2NzZ21na3ZuZXpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzOTE1MjEsImV4cCI6MjA4ODk2NzUyMX0.wlQ11YfULBxho_L1mFRqc3p8F88rMidsysnUeiRhqHI"
 )
 
-let leads=[]
+// GET USER
+let user = JSON.parse(localStorage.getItem("telecaller"))
 
-
-// ✅ UI Messages
-function showError(msg){
-errorBox.innerText=msg
-errorBox.style.display="block"
-setTimeout(()=>errorBox.style.display="none",4000)
+// DEBUG PANEL
+function debug(msg){
+document.getElementById("debug").innerText += msg + "\n"
+console.log(msg)
 }
 
-function showSuccess(msg){
-successBox.innerText=msg
-successBox.style.display="block"
-setTimeout(()=>successBox.style.display="none",4000)
+// CHECK USER
+debug("User: " + JSON.stringify(user))
+
+if(!user){
+alert("Login required")
+window.location.href="login.html"
 }
 
-
-// ✅ Fetch Leads
+// FETCH LEADS
 async function fetchLeads(){
 
+debug("Fetching leads...")
+
+// 🔥 STEP 1: GET ALL LEADS
 const { data, error } = await supabaseClient
 .from("leads")
 .select("*")
-.order("id",{ascending:false})
+
+debug("Error: " + JSON.stringify(error))
+debug("Total Leads: " + (data ? data.length : 0))
 
 if(error){
-showError(error.message)
+alert("Error: " + error.message)
 return
 }
 
-leads=data
-renderLeads()
+// 🔥 STEP 2: FILTER MANUALLY
+let myLeads = (data || []).filter(l => l.assigned_to == user.id)
+
+debug("User ID: " + user.id)
+debug("My Leads Count: " + myLeads.length)
+
+// 🔥 FALLBACK (if nothing found)
+if(myLeads.length === 0){
+debug("⚠ No assigned leads → showing ALL leads (debug mode)")
+myLeads = data
+}
+
+render(myLeads)
 
 }
 
+// RENDER
+function render(leads){
 
-// ✅ Render Table WITH DROPDOWN EDIT 🔥
-function renderLeads(){
+if(!leads || leads.length === 0){
+table.innerHTML = `<tr><td colspan="6">No leads found</td></tr>`
+return
+}
 
-let table=""
-
-leads.forEach((lead)=>{
-
-table+=`
+table.innerHTML = leads.map(l=>`
 <tr>
-<td>${lead.name}</td>
-<td>${lead.phone}</td>
-<td>${lead.city}</td>
-<td>${lead.email || ""}</td>
+<td>${l.name}</td>
+<td>${l.phone}</td>
+<td>${l.city || ""}</td>
+<td>${l.email || ""}</td>
 
 <td>
-<select class="status-select" onchange="updateStatus(${lead.id}, this.value)">
-<option ${lead.status==="New"?"selected":""}>New</option>
-<option ${lead.status==="Interested"?"selected":""}>Interested</option>
-<option ${lead.status==="Follow Up"?"selected":""}>Follow Up</option>
-<option ${lead.status==="Converted"?"selected":""}>Converted</option>
-<option ${lead.status==="Not Interested"?"selected":""}>Not Interested</option>
+<select onchange="updateStatus(${l.id}, this.value)">
+<option ${l.status==="New"?"selected":""}>New</option>
+<option ${l.status==="Interested"?"selected":""}>Interested</option>
+<option ${l.status==="Follow Up"?"selected":""}>Follow Up</option>
+<option ${l.status==="Converted"?"selected":""}>Converted</option>
+<option ${l.status==="Not Interested"?"selected":""}>Not Interested</option>
 </select>
 </td>
 
 <td>
-<button class="call" onclick="callLead('${lead.phone}')">Call</button>
-<button class="view" onclick="viewLead(${lead.id})">View</button>
-<button class="delete" onclick="deleteLead(${lead.id})">Delete</button>
+<button class="call" onclick="call('${l.phone}')">Call</button>
+<button class="whatsapp" onclick="whatsapp('${l.phone}')">WhatsApp</button>
+<button class="mail" onclick="sendMail('${l.email}')">Mail</button>
 </td>
+
 </tr>
-`
-
-})
-
-document.getElementById("leadTable").innerHTML=table
+`).join("")
 
 }
 
-
-// ✅ Update Status (NO PROMPT)
-async function updateStatus(id, newStatus){
+// UPDATE STATUS
+async function updateStatus(id, status){
 
 const { error } = await supabaseClient
 .from("leads")
-.update({ status: newStatus })
+.update({ status: status })
 .eq("id", id)
 
 if(error){
-showError(error.message)
+alert(error.message)
 }else{
-showSuccess("Status Updated")
 fetchLeads()
 }
 
 }
 
-
-// ✅ Add Lead
-async function addLead(){
-
-let name=nameInput.value
-let phone=phoneInput.value.replace(/[^0-9]/g,"")
-
-if(!name || !phone){
-showError("Enter name and phone")
-return
-}
-
-const { error } = await supabaseClient
-.from("leads")
-.insert([{
-name,
-phone,
-city:cityInput.value,
-email:emailInput.value,
-status:status.value
-}])
-
-if(error){
-showError(error.message)
-}else{
-showSuccess("Lead Added")
-fetchLeads()
-}
-
-nameInput.value=""
-phoneInput.value=""
-cityInput.value=""
-emailInput.value=""
-
-}
-
-
-// ✅ Call
-function callLead(phone){
+// CALL
+function call(phone){
 window.location.href="tel:"+phone
 }
 
-
-// ✅ View
-function viewLead(id){
-
-let lead = leads.find(l => l.id == id)
-
-alert(
-"Name: "+lead.name+"\n"+
-"Phone: "+lead.phone+"\n"+
-"City: "+lead.city+"\n"+
-"Email: "+(lead.email || "")+"\n"+
-"Status: "+lead.status
-)
-
+// WHATSAPP
+function whatsapp(phone){
+let msg = encodeURIComponent("Hello, I am calling regarding your enquiry.")
+window.open(`https://wa.me/91${phone}?text=${msg}`, "_blank")
 }
 
-
-// ✅ Delete
-async function deleteLead(id){
-
-if(!confirm("Delete this lead?")) return
-
-const { error } = await supabaseClient
-.from("leads")
-.delete()
-.eq("id",id)
-
-if(error){
-showError(error.message)
-}else{
-showSuccess("Deleted")
-fetchLeads()
+// EMAIL
+function sendMail(email){
+window.location.href=`mailto:${email}?subject=Regarding your enquiry`
 }
 
+// LOGOUT
+function logout(){
+localStorage.removeItem("telecaller")
+window.location.href="login.html"
 }
 
-
-// ✅ Excel Upload
-async function uploadExcel(){
-
-const fileInput=document.getElementById("excelFile")
-
-if(fileInput.files.length===0){
-showError("Select Excel file")
-return
-}
-
-const file=fileInput.files[0]
-
-const reader=new FileReader()
-
-reader.onload=async function(e){
-
-const data=new Uint8Array(e.target.result)
-
-const workbook=XLSX.read(data,{type:'array'})
-
-const sheet=workbook.Sheets[workbook.SheetNames[0]]
-
-const jsonData=XLSX.utils.sheet_to_json(sheet)
-
-let leadsToInsert=[]
-
-jsonData.forEach(row => {
-
-leadsToInsert.push({
-name: row["Name"] || "",
-phone: (row["Mobile No."] || "").toString().replace(/[^0-9]/g,""),
-city: row["Current Location"] || "",
-email: row["Email Id"] || "",
-status: "New"
-})
-
-})
-
-const { error } = await supabaseClient
-.from("leads")
-.insert(leadsToInsert)
-
-if(error){
-showError(error.message)
-}else{
-showSuccess("Excel Uploaded Successfully")
-fetchLeads()
-}
-
-}
-
-reader.readAsArrayBuffer(file)
-
-}
-
-
-// 🚀 Start
+// START
 fetchLeads()
 
 </script>
