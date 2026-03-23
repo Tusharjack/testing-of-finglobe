@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Telecaller Login</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+body{font-family:Arial;background:#0b1d3a;color:white;text-align:center;padding-top:100px;}
+input,button{padding:10px;margin:10px;border:none;border-radius:5px;}
+button{background:#28c76f;color:white;}
+</style>
+
+</head>
+
+<body>
+
+<h2>Telecaller Login</h2>
+
+<input id="username" placeholder="Username"><br>
+<input id="password" type="password" placeholder="Password"><br>
+
+<button onclick="login()">Login</button>
+
+<script>
+
+const { createClient } = supabase
+
+const supabaseClient = createClient(
+"https://npyijrvbscsgmgkvnezh.supabase.co",
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5weWlqcnZic2NzZ21na3ZuZXpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzOTE1MjEsImV4cCI6MjA4ODk2NzUyMX0.wlQ11YfULBxho_L1mFRqc3p8F88rMidsysnUeiRhqHI"
+
+)
+
+async function login(){
+
+let u=username.value
+let p=password.value
+
+const { data } = await supabaseClient
+.from("telecallers")
+.select("*")
+.eq("username", u)
+.eq("password", p)
+.single()
+
+if(!data){
+alert("Invalid login")
+return
+}
+
+// ✅ save session
+localStorage.setItem("telecaller", JSON.stringify(data))
+
+window.location.href="dashboard.html"
+
+}
+
+</script>
+
+</body>
+</html>
