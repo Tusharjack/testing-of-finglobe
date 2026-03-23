@@ -74,7 +74,7 @@ if(error){
 alert(error.message)
 }else{
 alert("Login success")
-window.location.href = "admin.html"
+window.location.href = "telecallerlogin.html"
 }
 
 })
