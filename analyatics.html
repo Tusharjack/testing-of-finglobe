@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Admin Analytics Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+body{
+font-family:Arial;
+background:#0b1d3a;
+color:white;
+padding:20px;
+}
+
+.card{
+background:#10264a;
+padding:15px;
+margin:10px;
+border-radius:8px;
+display:inline-block;
+min-width:180px;
+text-align:center;
+}
+
+table{
+width:100%;
+margin-top:20px;
+background:#10264a;
+border-collapse:collapse;
+}
+
+td,th{
+padding:10px;
+border-bottom:1px solid rgba(255,255,255,0.1);
+}
+
+.green{color:#28c76f;}
+.yellow{color:#ff9f43;}
+.red{color:#ea5455;}
+.blue{color:#4ea3ff;}
+</style>
+
+</head>
+
+<body>
+
+<h2>📊 Telecaller Analytics Dashboard</h2>
+
+<!-- SUMMARY -->
+<div id="summary"></div>
+
+<!-- TELECALLER PERFORMANCE -->
+<h3>👨‍💼 Leads per Telecaller</h3>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Total Leads</th>
+<th>Calls Made</th>
+<th>Converted</th>
+</tr>
+</thead>
+<tbody id="tcTable"></tbody>
+</table>
+
+<!-- DAILY CALLS -->
+<h3>📅 Daily Calls</h3>
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th>Total Calls</th>
+</tr>
+</thead>
+<tbody id="dailyTable"></tbody>
+</table>
+
+<script>
+
+const { createClient } = supabase
+
+const supabaseClient = createClient(
+"https://npyijrvbscsgmgkvnezh.supabase.co",
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5weWlqcnZic2NzZ21na3ZuZXpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzOTE1MjEsImV4cCI6MjA4ODk2NzUyMX0.wlQ11YfULBxho_L1mFRqc3p8F88rMidsysnUeiRhqHI"
+)
+
+// LOAD ALL DATA
+async function loadDashboard(){
+
+// GET LEADS
+const { data: leads } = await supabaseClient
+.from("leads")
+.select("*")
+
+// GET TELECALLERS
+const { data: telecallers } = await supabaseClient
+.from("telecallers")
+.select("*")
+
+// GET CALL LOGS
+const { data: calls } = await supabaseClient
+.from("call_logs")
+.select("*")
+
+renderSummary(leads)
+renderTelecaller(leads, telecallers, calls)
+renderDaily(calls)
+
+}
+
+// SUMMARY
+function renderSummary(leads){
+
+let total = leads.length
+let converted = leads.filter(l=>l.status==="Converted").length
+let interested = leads.filter(l=>l.status==="Interested").length
+
+document.getElementById("summary").innerHTML = `
+<div class="card">Total Leads<br><b>${total}</b></div>
+<div class="card green">Converted<br><b>${converted}</b></div>
+<div class="card yellow">Interested<br><b>${interested}</b></div>
+`
+
+}
+
+// TELECALLER PERFORMANCE
+function renderTelecaller(leads, telecallers, calls){
+
+let html=""
+
+telecallers.forEach(tc=>{
+
+let myLeads = leads.filter(l=>l.assigned_to == tc.id)
+let myCalls = calls.filter(c=>c.telecaller_id == tc.id)
+
+let converted = myLeads.filter(l=>l.status==="Converted").length
+
+html+=`
+<tr>
+<td>${tc.name}</td>
+<td>${myLeads.length}</td>
+<td>${myCalls.length}</td>
+<td class="green">${converted}</td>
+</tr>
+`
+
+})
+
+document.getElementById("tcTable").innerHTML = html
+
+}
+
+// DAILY CALLS
+function renderDaily(calls){
+
+let grouped = {}
+
+calls.forEach(c=>{
+
+let date = new Date(c.call_time).toLocaleDateString()
+
+if(!grouped[date]) grouped[date]=0
+grouped[date]++
+
+})
+
+let html=""
+
+Object.keys(grouped).forEach(date=>{
+html+=`
+<tr>
+<td>${date}</td>
+<td>${grouped[date]}</td>
+</tr>
+`
+})
+
+document.getElementById("dailyTable").innerHTML = html
+
+}
+
+// START
+loadDashboard()
+
+</script>
+
+</body>
+</html>
