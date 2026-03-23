@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Manage Telecallers</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+
+body{
+font-family:Arial;
+background:#0b1d3a;
+color:white;
+margin:0;
+}
+
+header{
+padding:15px;
+background:#081633;
+text-align:center;
+}
+
+.container{
+padding:20px;
+max-width:700px;
+margin:auto;
+}
+
+input,button{
+padding:10px;
+margin:5px 0;
+width:100%;
+border:none;
+border-radius:6px;
+}
+
+button{
+cursor:pointer;
+background:#28c76f;
+color:white;
+}
+
+.back{
+background:#7367f0;
+}
+
+table{
+width:100%;
+margin-top:20px;
+border-collapse:collapse;
+background:#10264a;
+}
+
+th,td{
+padding:10px;
+border-bottom:1px solid rgba(255,255,255,0.1);
+text-align:left;
+}
+
+.delete{
+background:#ea5455;
+padding:5px 10px;
+border-radius:5px;
+cursor:pointer;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<header>
+<h2>Telecaller Management</h2>
+</header>
+
+<div class="container">
+
+<button class="back" onclick="goBack()">⬅ Back to Dashboard</button>
+
+<h3>Add Telecaller</h3>
+
+<input id="tcName" placeholder="Name">
+<input id="tcUsername" placeholder="Username">
+<input id="tcPassword" type="password" placeholder="Password">
+
+<button onclick="addTelecaller()">Add Telecaller</button>
+
+<h3>Telecaller List</h3>
+
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Name</th>
+<th>Username</th>
+<th>Password</th>
+<th>Action</th>
+</tr>
+</thead>
+
+<tbody id="tcTable"></tbody>
+
+</table>
+
+</div>
+
+<script>
+
+// SUPABASE
+const { createClient } = supabase
+
+const supabaseClient = createClient(
+"https://npyijrvbscsgmgkvnezh.supabase.co",
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5weWlqcnZic2NzZ21na3ZuZXpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzOTE1MjEsImV4cCI6MjA4ODk2NzUyMX0.wlQ11YfULBxho_L1mFRqc3p8F88rMidsysnUeiRhqHI"
+)
+
+let telecallers=[]
+
+// NAV
+function goBack(){
+window.location.href="index.html"
+}
+
+// FETCH
+async function fetchTelecallers(){
+
+const { data, error } = await supabaseClient
+.from("telecallers")
+.select("*")
+.order("id",{ascending:true})
+
+if(error){
+alert(error.message)
+return
+}
+
+telecallers=data
+render()
+
+}
+
+// RENDER
+function render(){
+
+let html=""
+
+telecallers.forEach(tc=>{
+
+html+=`
+<tr>
+<td>${tc.id}</td>
+<td>${tc.name}</td>
+<td>${tc.username || "-"}</td>
+<td>${tc.password || "-"}</td>
+<td>
+<button class="delete" onclick="deleteTC(${tc.id})">Delete</button>
+</td>
+</tr>
+`
+
+})
+
+tcTable.innerHTML=html
+
+}
+
+// ADD TELECALLER
+async function addTelecaller(){
+
+let name = tcName.value
+let username = tcUsername.value
+let password = tcPassword.value
+
+if(!name || !username || !password){
+alert("Fill all fields")
+return
+}
+
+const { error } = await supabaseClient
+.from("telecallers")
+.insert([{
+name,
+username,
+password
+}])
+
+if(error){
+alert(error.message)
+}else{
+tcName.value=""
+tcUsername.value=""
+tcPassword.value=""
+fetchTelecallers()
+}
+
+}
+
+// DELETE
+async function deleteTC(id){
+
+if(!confirm("Delete telecaller?")) return
+
+await supabaseClient
+.from("telecallers")
+.delete()
+.eq("id",id)
+
+fetchTelecallers()
+
+}
+
+// START
+fetchTelecallers()
+
+</script>
+
+</body>
+</html>
