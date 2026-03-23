@@ -8,64 +8,39 @@
 <title>Finglobe CRM Admin</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
 <style>
-
 body{
 font-family:Arial;
 background:#0b1d3a;
 color:white;
 margin:0;
 }
-
 header{
 padding:15px;
 background:#081633;
 }
-
 .container{
 padding:20px;
 }
-
-.card{
-background:#1c3c6b;
-padding:15px;
-border-radius:10px;
-margin:10px;
-display:inline-block;
-min-width:120px;
-text-align:center;
-}
-
-input,select,button{
+input,button{
 margin:5px;
 padding:8px;
 border-radius:5px;
 border:none;
 }
-
 button{cursor:pointer;}
-
-.error{background:#ea5455;padding:10px;display:none;}
-.success{background:#28c76f;padding:10px;display:none;}
-
 table{
 width:100%;
 margin-top:20px;
 background:#10264a;
 border-collapse:collapse;
 }
-
 td,th{
 padding:10px;
 border-bottom:1px solid rgba(255,255,255,0.1);
 }
-
-.status-select{
-background:#0b1d3a;
-color:white;
-}
-
 </style>
 
 </head>
@@ -78,30 +53,10 @@ color:white;
 
 <div class="container">
 
-<div id="errorBox" class="error"></div>
-<div id="successBox" class="success"></div>
+<button onclick="window.location.href='telecallers.html'">
+Manage Telecallers
+</button>
 
-<!-- Dashboard -->
-<div>
-<div class="card">Total: <span id="totalLeads">0</span></div>
-<div class="card">New: <span id="newLeads">0</span></div>
-<div class="card">Interested: <span id="interestedLeads">0</span></div>
-<div class="card">Converted: <span id="convertedLeads">0</span></div>
-</div>
-
-<!-- Search & Filter -->
-<input id="search" placeholder="Search name or phone" onkeyup="filterLeads()">
-
-<select id="filterStatus" onchange="filterLeads()">
-<option value="">All Status</option>
-<option>New</option>
-<option>Interested</option>
-<option>Follow Up</option>
-<option>Converted</option>
-<option>Not Interested</option>
-</select>
-
-<!-- Add Lead -->
 <h3>Add Lead</h3>
 
 <input id="name" placeholder="Name">
@@ -109,19 +64,19 @@ color:white;
 <input id="city" placeholder="City">
 <input id="email" placeholder="Email">
 
-<select id="status">
-<option>New</option>
-<option>Interested</option>
-<option>Follow Up</option>
-<option>Converted</option>
-<option>Not Interested</option>
-</select>
-
 <button onclick="addLead()">Add Lead</button>
 
-<!-- Table -->
-<table>
+<h3>Upload Excel</h3>
 
+<input type="file" id="excelFile">
+<button onclick="uploadExcel()">Upload Excel</button>
+
+<br><br>
+
+<button onclick="sortByStatus()">Sort by Status</button>
+<button onclick="sortByTelecaller()">Sort by Telecaller</button>
+
+<table>
 <thead>
 <tr>
 <th>Name</th>
@@ -129,7 +84,7 @@ color:white;
 <th>City</th>
 <th>Email</th>
 <th>Status</th>
-<th>Actions</th>
+<th>Telecaller</th>
 </tr>
 </thead>
 
@@ -141,7 +96,6 @@ color:white;
 
 <script>
 
-// ✅ Supabase Setup
 const { createClient } = supabase
 
 const supabaseClient = createClient(
@@ -150,189 +104,204 @@ const supabaseClient = createClient(
 )
 
 let leads=[]
+let telecallers=[]
 
+// LOAD TELECALLERS
+async function loadTelecallers(){
 
-// ✅ UI Messages
-function showError(msg){
-errorBox.innerText=msg
-errorBox.style.display="block"
-setTimeout(()=>errorBox.style.display="none",3000)
+const { data, error } = await supabaseClient
+.from("telecallers")
+.select("*")
+
+console.log("Telecallers:", data)
+
+if(error){
+console.log("Telecaller Error:", error)
 }
 
-function showSuccess(msg){
-successBox.innerText=msg
-successBox.style.display="block"
-setTimeout(()=>successBox.style.display="none",3000)
+telecallers = data || []
+
 }
 
-
-// ✅ Fetch Leads
+// FETCH LEADS
 async function fetchLeads(){
+
+await loadTelecallers()
 
 const { data, error } = await supabaseClient
 .from("leads")
 .select("*")
-.order("id",{ascending:false})
+
+console.log("Leads:", data)
 
 if(error){
-showError(error.message)
+console.log("Leads Error:", error)
 return
 }
 
-leads=data
-renderLeads()
-updateDashboard()
+leads=data || []
+render()
 
 }
 
+// GET TELECALLER NAME
+function getTelecallerName(id){
+let tc = telecallers.find(t => t.id == id)
+return tc ? tc.name : "Unassigned"
+}
 
-// ✅ Render Table with DROPDOWN STATUS
-function renderLeads(data=leads){
+// RENDER TABLE
+function render(){
 
 let html=""
 
-data.forEach(l=>{
+leads.forEach(l=>{
 
 html+=`
 <tr>
 <td>${l.name}</td>
 <td>${l.phone}</td>
-<td>${l.city}</td>
+<td>${l.city || ""}</td>
 <td>${l.email || ""}</td>
-
-<td>
-<select class="status-select" onchange="updateStatus(${l.id}, this.value)">
-<option ${l.status==="New"?"selected":""}>New</option>
-<option ${l.status==="Interested"?"selected":""}>Interested</option>
-<option ${l.status==="Follow Up"?"selected":""}>Follow Up</option>
-<option ${l.status==="Converted"?"selected":""}>Converted</option>
-<option ${l.status==="Not Interested"?"selected":""}>Not Interested</option>
-</select>
-</td>
-
-<td>
-<button onclick="callLead('${l.phone}')">Call</button>
-<button onclick="deleteLead(${l.id})">Delete</button>
-</td>
+<td>${l.status}</td>
+<td>${getTelecallerName(l.assigned_to)}</td>
 </tr>
 `
 
 })
 
-leadTable.innerHTML=html
+document.getElementById("leadTable").innerHTML=html
 
 }
 
-
-// ✅ Update Status (NO PROMPT 🔥)
-async function updateStatus(id, newStatus){
-
-const { error } = await supabaseClient
-.from("leads")
-.update({ status: newStatus })
-.eq("id", id)
-
-if(error){
-showError(error.message)
-}else{
-showSuccess("Status Updated")
-fetchLeads()
+// SORT BY STATUS
+function sortByStatus(){
+leads.sort((a,b)=> (a.status || "").localeCompare(b.status || ""))
+render()
 }
 
+// SORT BY TELECALLER
+function sortByTelecaller(){
+leads.sort((a,b)=>{
+return getTelecallerName(a.assigned_to)
+.localeCompare(getTelecallerName(b.assigned_to))
+})
+render()
 }
 
-
-// ✅ Dashboard
-function updateDashboard(){
-
-totalLeads.innerText = leads.length
-
-newLeads.innerText =
-leads.filter(l=>l.status==="New").length
-
-interestedLeads.innerText =
-leads.filter(l=>l.status==="Interested").length
-
-convertedLeads.innerText =
-leads.filter(l=>l.status==="Converted").length
-
-}
-
-
-// ✅ Add Lead
+// ADD LEAD
 async function addLead(){
 
-let name=nameInput.value
-let phone=phoneInput.value.replace(/[^0-9]/g,"")
+await loadTelecallers()
 
-if(!name || !phone){
-showError("Enter name & phone")
+if(telecallers.length===0){
+alert("No telecallers found")
 return
 }
 
-const { error } = await supabaseClient
-.from("leads")
-.insert([{
-name,
-phone,
-city:cityInput.value,
-email:emailInput.value,
-status:status.value
+let assigned = telecallers[leads.length % telecallers.length].id
+
+const { error } = await supabaseClient.from("leads").insert([{
+name:name.value,
+phone:phone.value,
+city:city.value,
+email:email.value,
+status:"New",
+assigned_to:assigned
 }])
 
 if(error){
-showError(error.message)
+console.log(error)
+alert(error.message)
 }else{
-showSuccess("Lead Added")
+alert("Lead Added")
 fetchLeads()
 }
 
 }
 
+// UPLOAD EXCEL WITH STATUS FIX
+async function uploadExcel(){
 
-// ✅ Delete
-async function deleteLead(id){
+console.log("UPLOAD CLICKED")
 
-if(!confirm("Delete this lead?")) return
+await loadTelecallers()
+
+if(telecallers.length===0){
+alert("Add telecallers first")
+return
+}
+
+let file=document.getElementById("excelFile").files[0]
+
+if(!file){
+alert("Select file")
+return
+}
+
+let reader=new FileReader()
+
+reader.onload=async function(e){
+
+try{
+
+let data=new Uint8Array(e.target.result)
+let wb=XLSX.read(data,{type:"array"})
+let sheet=wb.Sheets[wb.SheetNames[0]]
+let json=XLSX.utils.sheet_to_json(sheet)
+
+console.log("Excel Data:", json)
+
+let list=[]
+let i=0
+
+json.forEach(row=>{
+
+console.log("Row Status:", row["Status"])
+
+let assigned = telecallers[i % telecallers.length].id
+i++
+
+list.push({
+name: row["Name"] || "",
+phone: (row["Mobile No."] || "").toString(),
+city: row["Current Location"] || "",
+email: row["Email Id"] || "",
+
+// 🔥 FIXED STATUS
+status: (row["Status"] || "New").toString().trim(),
+
+assigned_to: assigned
+})
+
+})
+
+console.log("Final Insert List:", list)
 
 const { error } = await supabaseClient
 .from("leads")
-.delete()
-.eq("id",id)
+.insert(list)
 
 if(error){
-showError(error.message)
+console.log("Insert Error:", error)
+alert(error.message)
 }else{
-showSuccess("Deleted")
+alert("Excel Uploaded & Distributed Successfully")
 fetchLeads()
 }
 
+}catch(err){
+console.log("Processing Error:", err)
+alert("Error reading Excel")
 }
-
-
-// ✅ Call
-function callLead(p){
-window.location.href="tel:"+p
-}
-
-
-// ✅ Search + Filter
-function filterLeads(){
-
-let s=search.value.toLowerCase()
-let st=filterStatus.value
-
-let filtered=leads.filter(l =>
-(l.name.toLowerCase().includes(s) || l.phone.includes(s)) &&
-(st==="" || l.status===st)
-)
-
-renderLeads(filtered)
 
 }
 
+reader.readAsArrayBuffer(file)
 
-// 🚀 Start
+}
+
+// START
 fetchLeads()
 
 </script>
